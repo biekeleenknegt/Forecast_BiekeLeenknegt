@@ -8,8 +8,8 @@ st.set_page_config(page_title="Project Cost Estimator", layout="centered")
 st.title("Secure Project Cost Estimator")
 
 # Hardcoded login credentials
-USERNAME = "test"
-PASSWORD = "wachtwoordvantest?"
+USERNAME = "wouterleenknegt"
+PASSWORD = "wachtwoordvanpapa?"
 
 # Session state to remember login
 if "authenticated" not in st.session_state:
