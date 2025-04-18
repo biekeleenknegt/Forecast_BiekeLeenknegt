@@ -38,7 +38,7 @@ CSV_PATH = "database.csv"
 if os.path.exists(CSV_PATH):
     df = pd.read_csv(CSV_PATH)
 else:
-    df = pd.DataFrame(columns=["Project", "destination", "Surface", "specialties", "Total sale price per squared metres", "Total sale price"])
+    df = pd.DataFrame(columns=["name", "destination", "special_features", "surface", "finish", "price", "price_per_m2"])
 
 # Page selection
 page = st.sidebar.radio("Navigation", ["Forecast price", "Add new project", "View and modify projects"])
@@ -56,14 +56,14 @@ if page == "Forecast price":
 
     destination = st.selectbox("Project destination", ["SME", "hangar", "hangar with office", "shoppincenter"])
     special_features = st.checkbox("Are special techniques present (e.g. HVAC, solar panels, etc.)?")
-    special_value = 1 if special_features else 0
+    special_value = "yes" if special_features else "no"
     input_surface = st.number_input("Expected surface area (m²)", min_value=1)
 
-    filtered = df[(df["destination"] == destination) & (df["specialties"] == special_value)]
+    filtered = df[(df["destination"] == destination) & (df["special_features"] == special_value)]
 
     st.subheader("Forecast")
     if not filtered.empty:
-        avg_price_per_m2 = filtered["Total sale price per squared metres"].mean()
+        avg_price_per_m2 = filtered["price_per_m2"].mean()
         estimated_total = avg_price_per_m2 * input_surface
         count = filtered.shape[0]
 
@@ -86,24 +86,24 @@ elif page == "Add new project":
 
     with st.form("add_form"):
         name = st.text_input("Project name")
-        dest = st.selectbox("Destination", ["", "SME", "hangar", "hangar with office", "shoppincenter"])
+        dest = st.selectbox("Destination", ["SME", "hangar", "hangar with office", "shoppincenter"])
         spec = st.checkbox("Special techniques present?")
-        spec_val = 1 if spec else 0
+        spec_val = "yes" if spec else "no"
         surface = st.number_input("Surface area (m²)", min_value=1)
         price = st.number_input("Total sale price (€)", min_value=1)
 
         submit = st.form_submit_button("Submit project")
 
         if submit:
-            if name and dest:
+            if name and dest and finish:
                 price_per_m2 = price / surface
                 new_row = pd.DataFrame([{
-                    "Project": name,
+                    "name": name,
                     "destination": dest,
-                    "Surface": surface,
-                    "specialties": spec_val,
-                    "Total sale price per squared metres": price_per_m2,
-                    "Total sale price": price
+                    "special_features": spec_val,
+                    "surface": surface,
+                    "price": price,
+                    "price_per_m2": price_per_m2
                 }])
                 df = pd.concat([df, new_row], ignore_index=True)
                 df.to_csv(CSV_PATH, index=False)
@@ -129,14 +129,14 @@ elif page == "View and modify projects":
         st.markdown(f"Selected project (row {row_index}):")
         st.write(df.iloc[row_index])
 
-        new_price = st.number_input("New price (€)", min_value=1, value=int(df.iloc[row_index]["Total sale price"]))
+        new_price = st.number_input("New price (€)", min_value=1, value=int(df.iloc[row_index]["price"]))
 
         col1, col2 = st.columns(2)
 
         with col1:
             if st.button("Update price"):
-                df.at[row_index, "Total sale price"] = new_price
-                df.at[row_index, "Total sale price per squared metres"] = new_price / df.at[row_index, "Surface"]
+                df.at[row_index, "price"] = new_price
+                df.at[row_index, "price_per_m2"] = new_price / df.at[row_index, "surface"]
                 df.to_csv(CSV_PATH, index=False)
                 st.success("Price updated successfully.")
 
