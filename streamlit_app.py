@@ -38,7 +38,7 @@ CSV_PATH = "database.csv"
 if os.path.exists(CSV_PATH):
     df = pd.read_csv(CSV_PATH)
 else:
-    df = pd.DataFrame(columns=["name", "destination", "special_features", "surface", "finish", "price", "price_per_m2"])
+    df = pd.DataFrame(columns=["name", "destination", "special_features", "surface", "price", "price_per_m2"])
 
 # Page selection
 page = st.sidebar.radio("Navigation", ["Forecast price", "Add new project", "View and modify projects"])
@@ -95,7 +95,7 @@ elif page == "Add new project":
         submit = st.form_submit_button("Submit project")
 
         if submit:
-            if name and dest and finish:
+            if name and dest:
                 price_per_m2 = price / surface
                 new_row = pd.DataFrame([{
                     "name": name,
