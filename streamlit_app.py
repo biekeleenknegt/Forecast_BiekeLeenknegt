@@ -2,7 +2,35 @@ import streamlit as st
 import pandas as pd
 import os
 
+# -------- LOGIN SECTION --------
 st.set_page_config(page_title="Project Cost Estimator", layout="centered")
+
+st.title("Secure Project Cost Estimator")
+
+# Hardcoded login credentials
+USERNAME = "biekeleenknegt"
+PASSWORD = "MaxenLoena2?"
+
+# Session state to remember login
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    with st.form("login_form"):
+        st.subheader("Login required")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        login = st.form_submit_button("Login")
+
+        if login:
+            if username == USERNAME and password == PASSWORD:
+                st.session_state.authenticated = True
+                st.experimental_rerun()
+            else:
+                st.error("Invalid credentials. Please try again.")
+    st.stop()
+
+# -------- MAIN APP (only visible after login) --------
 
 # Load or initialize the CSV database
 CSV_PATH = "database.csv"
@@ -21,8 +49,8 @@ if page == "Forecast price":
     st.title("Forecast Project Price")
 
     st.markdown("""
-    Based on similar past projects in our database, this tool estimates the price per m²  
-    and multiplies it by your given surface to calculate a total forecast.
+    Based on similar past projects in our database, this tool estimates the average price per square meter  
+    and calculates the estimated total cost by multiplying with the surface you provide.
     """)
 
     destination = st.selectbox("Project destination", ["house", "school", "office", "apartment"])
