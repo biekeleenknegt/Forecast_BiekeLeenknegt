@@ -25,7 +25,7 @@ if not st.session_state.authenticated:
         if login:
             if username == USERNAME and password == PASSWORD:
                 st.session_state.authenticated = True
-                st.success("Login successful. Please reload the page.")
+                st.success("Login successful. Please press login again.")
                 st.stop()
             else:
                 st.error("Invalid credentials. Please try again.")
