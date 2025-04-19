@@ -142,10 +142,10 @@ elif page == "View and modify projects":
                 if df.at[row_index, "exterior_surface"] > 0:
                     df.at[row_index, "exterior_price_per_m2"] = new_ext_price / df.at[row_index, "exterior_surface"]
                 df.to_csv(CSV_PATH, index=False)
-                st.success("Prices updated.")
+                st.success("New price is registrated, press update price again to confirm.")
 
         with col2:
             if st.button("Delete project"):
                 df = df.drop(index=row_index).reset_index(drop=True)
                 df.to_csv(CSV_PATH, index=False)
-                st.success("Project deleted.")
+                st.success("Project will be deleted. Press delete project again to confirm.")
