@@ -161,7 +161,7 @@ elif page == "View and modify projects":
                 df.to_csv(CSV_PATH, index=False)
                 st.success("Project will be deleted. Press delete project again to confirm.")
 
-# -------- 4. ABOUT PAGE --------
+# -------- 4. ABOUT PAGE ------- 
 elif page == "About this tool":
     st.title("About this Tool")
     st.markdown("""
