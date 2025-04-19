@@ -181,5 +181,5 @@ elif page == "About this tool":
     - Includes a time correction factor: **2.3% yearly price increase** is assumed.
     - Projects from earlier years are adjusted upwards to match the selected forecast year.
     - Users can view, modify or delete projects.
-    - Built using **Streamlit** with a simple CSV-based backend.
+    - Built using **Streamlit** with a CSV-based backend.
     """)

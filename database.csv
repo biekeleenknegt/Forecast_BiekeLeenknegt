@@ -1,3 +1,6 @@
 name,destination,special_features,surface,price,price_per_m2,exterior_surface,exterior_price,exterior_price_per_m2,year
-Test,hangar,yes,1000,10290,10.29,0,0,,2024
 test2,SME,no,1,1,1.0,9000,9000000,1000.0,2025
+test3,shoppincenter,no,1000,1000000,1000.0,0,0,,2025
+test3,shoppincenter,no,1000,1000000,1000.0,0,0,,2025
+test4,shoppincenter,no,1000,1000000,1000.0,0,0,,2025
+test4,shoppincenter,no,1000,1000000,1000.0,0,0,,2020
