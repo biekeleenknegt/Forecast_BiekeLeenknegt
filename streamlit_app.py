@@ -106,7 +106,7 @@ elif page == "Add new project":
         surface = st.number_input("Building surface (m²)", min_value=1)
         price = st.number_input("Total sale price (€)", min_value=1)
         exterior_surface = st.number_input("Exterior surface (m²)", min_value=0)
-        exterior_price = st.number_input("Exterior price (€)", min_value=0)
+        exterior_price = st.number_input("Total exterior price (€)", min_value=0)
         year = st.number_input("Year of construction", min_value=2000, max_value=datetime.now().year, value=datetime.now().year)
 
         submit = st.form_submit_button("Submit project")
