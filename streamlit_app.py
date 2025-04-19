@@ -60,11 +60,16 @@ if page == "Forecast price":
     filtered = df[(df["destination"] == destination) & (df["special_features"] == special_value)]
 
     if not filtered.empty:
-        def apply_time_correction(row):
+        def correct(row):
             year_diff = forecast_year - row["year"]
-            return row["price_per_m2"] * (1.023 ** year_diff)
+            correction = (1.023 ** year_diff)
+            return correction
 
-        filtered["corrected_price_per_m2"] = filtered.apply(apply_time_correction, axis=1)
+        filtered["corrected_price_per_m2"] = filtered.apply(lambda row: row["price_per_m2"] * correct(row), axis=1)
+        filtered["corrected_exterior_price_per_m2"] = filtered.apply(
+            lambda row: row["exterior_price_per_m2"] * correct(row) if pd.notna(row["exterior_price_per_m2"]) else None,
+            axis=1
+        )
 
         avg_price_per_m2 = filtered["corrected_price_per_m2"].mean()
         estimated_total = avg_price_per_m2 * input_surface
@@ -73,7 +78,7 @@ if page == "Forecast price":
         st.success(f"Estimated building cost: **€{estimated_total:,.2f}**")
 
         st.subheader("Exterior works estimate")
-        ext_prices = filtered["exterior_price_per_m2"].dropna()
+        ext_prices = filtered["corrected_exterior_price_per_m2"].dropna()
         if not ext_prices.empty:
             min_ext = ext_prices.min()
             max_ext = ext_prices.max()
@@ -81,7 +86,7 @@ if page == "Forecast price":
                 min_total = min_ext * exterior_surface
                 max_total = max_ext * exterior_surface
                 st.write(f"Estimated exterior cost range: **€{min_total:,.2f} – €{max_total:,.2f}**")
-                st.write(f"Based on price/m² from **€{min_ext:.2f}** to **€{max_ext:.2f}**")
+                st.write(f"Based on corrected price/m² from **€{min_ext:.2f}** to **€{max_ext:.2f}**")
             else:
                 st.info("Enter an exterior surface to see a cost range.")
         else:
@@ -174,7 +179,7 @@ elif page == "About this tool":
     - Separates **building** and **exterior works** cost estimation.
     - Exterior cost is shown as a price range based on the minimum and maximum €/m² in the database.
     - Includes a time correction factor: **2.3% yearly price increase** is assumed.
-    - Projects from earlier years are adjusted upwards, future forecasts are compared to corrected historical data.
+    - Projects from earlier years are adjusted upwards to match the selected forecast year.
     - Users can view, modify or delete projects.
     - Built using **Streamlit** with a simple CSV-based backend.
     """)
