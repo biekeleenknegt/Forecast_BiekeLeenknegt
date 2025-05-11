@@ -7,8 +7,8 @@ from datetime import datetime
 st.set_page_config(page_title="Project Cost Estimator", layout="centered")
 st.title("Project Cost Estimator")
 
-USERNAME = "tom"
-PASSWORD = "wachtwoordvoortom!"
+USERNAME = "test"
+PASSWORD = "test"
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -34,7 +34,7 @@ if os.path.exists(CSV_PATH):
     df = pd.read_csv(CSV_PATH)
 else:
     df = pd.DataFrame(columns=[
-        "name", "destination", "special_features", "surface", "price", "price_per_m2",
+        "name", "vaults", "loading_bay", "surface", "price", "price_per_m2",
         "exterior_surface", "exterior_price", "exterior_price_per_m2", "year"
     ])
 
@@ -50,47 +50,50 @@ if page == "Forecast price":
     This tool estimates both building cost and exterior works separately, with adjustments for time-based inflation.
     """)
 
-    destination = st.selectbox("Project destination", ["SME", "hangar", "hangar with office", "shoppincenter"])
-    special_features = st.checkbox("Is a cellar present?")
-    special_value = "yes" if special_features else "no"
+    # New feature: vaults and loading bay
+    vaults = st.checkbox("Are vaults required?")
+    loading_bay = st.checkbox("Is a loading bay required?")
+    vault_val = "yes" if vaults else "no"
+    load_val = "yes" if loading_bay else "no"
+
     input_surface = st.number_input("Expected building surface (m²)", min_value=1)
     exterior_surface = st.number_input("Expected exterior surface (m²)", min_value=0)
     forecast_year = st.number_input("Planned project year", min_value=2020, max_value=2100, value=datetime.now().year)
 
-    filtered = df[(df["destination"] == destination) & (df["special_features"] == special_value)]
+    # Filter on vaults and loading bay
+    filtered = df[(df["vaults"] == vault_val) & (df["loading_bay"] == load_val)]
 
     if not filtered.empty:
         def correct(row):
             year_diff = forecast_year - row["year"]
-            correction = (1.023 ** year_diff)
-            return correction
+            return 1.023 ** year_diff
 
-        filtered["corrected_price_per_m2"] = filtered.apply(lambda row: row["price_per_m2"] * correct(row), axis=1)
+        filtered["corrected_price_per_m2"] = filtered.apply(
+            lambda row: row["price_per_m2"] * correct(row), axis=1)
         filtered["corrected_exterior_price_per_m2"] = filtered.apply(
-            lambda row: row["exterior_price_per_m2"] * correct(row) if pd.notna(row["exterior_price_per_m2"]) else None,
+            lambda row: row["exterior_price_per_m2"] * correct(row)
+            if pd.notna(row["exterior_price_per_m2"]) else None,
             axis=1
         )
 
+        # Building estimate: average
         avg_price_per_m2 = filtered["corrected_price_per_m2"].mean()
-        estimated_total = avg_price_per_m2 * input_surface
+        est_build_cost = avg_price_per_m2 * input_surface
         st.info(f"{filtered.shape[0]} matching projects found.")
         st.write(f"Corrected avg price per m²: **€{avg_price_per_m2:,.2f}**")
-        st.success(f"Estimated building cost: **€{estimated_total:,.2f}**")
+        st.success(f"Estimated building cost: **€{est_build_cost:,.2f}**")
 
+        # Exterior: range
         st.subheader("Exterior works estimate")
         ext_prices = filtered["corrected_exterior_price_per_m2"].dropna()
-        if not ext_prices.empty:
-            min_ext = ext_prices.min()
-            max_ext = ext_prices.max()
-            if exterior_surface > 0:
-                min_total = min_ext * exterior_surface
-                max_total = max_ext * exterior_surface
-                st.write(f"Estimated exterior cost range: **€{min_total:,.2f} – €{max_total:,.2f}**")
-                st.write(f"Based on corrected price/m² from **€{min_ext:.2f}** to **€{max_ext:.2f}**")
-            else:
-                st.info("Enter an exterior surface to see a cost range.")
+        if not ext_prices.empty and exterior_surface > 0:
+            min_ext, max_ext = ext_prices.min(), ext_prices.max()
+            st.write(f"Estimated exterior cost range: **€{min_ext*exterior_surface:,.2f} – €{max_ext*exterior_surface:,.2f}**")
+            st.write(f"Based on corrected price/m² from **€{min_ext:.2f}** to **€{max_ext:.2f}**")
+        elif exterior_surface > 0:
+            st.warning("No exterior pricing data available.")
         else:
-            st.warning("No exterior pricing data available yet.")
+            st.info("Enter an exterior surface to see a cost range.")
     else:
         st.warning("No matching projects found in the database yet.")
 
@@ -100,9 +103,10 @@ elif page == "Add new project":
 
     with st.form("add_form"):
         name = st.text_input("Project name")
-        dest = st.selectbox("Destination", ["SME", "hangar", "hangar with office", "shoppincenter"])
-        spec = st.checkbox("Is a cellar present?")
-        spec_val = "yes" if spec else "no"
+        vaults = st.checkbox("Are vaults present?")
+        loading_bay = st.checkbox("Is a loading bay present?")
+        vault_val = "yes" if vaults else "no"
+        load_val = "yes" if loading_bay else "no"
         surface = st.number_input("Building surface (m²)", min_value=1)
         price = st.number_input("Total sale price (€)", min_value=1)
         exterior_surface = st.number_input("Exterior surface (m²)", min_value=0)
@@ -110,15 +114,14 @@ elif page == "Add new project":
         year = st.number_input("Year of construction", min_value=2000, max_value=datetime.now().year, value=datetime.now().year)
 
         submit = st.form_submit_button("Submit project")
-
         if submit:
-            if name and dest:
+            if name:
                 price_per_m2 = price / surface
-                ext_price_per_m2 = (exterior_price / exterior_surface) if exterior_surface > 0 else None
+                ext_price_per_m2 = exterior_price / exterior_surface if exterior_surface > 0 else None
                 new_row = pd.DataFrame([{
                     "name": name,
-                    "destination": dest,
-                    "special_features": spec_val,
+                    "vaults": vault_val,
+                    "loading_bay": load_val,
                     "surface": surface,
                     "price": price,
                     "price_per_m2": price_per_m2,
@@ -141,10 +144,8 @@ elif page == "View and modify projects":
         st.warning("No projects in the database.")
     else:
         st.dataframe(df)
-
         st.subheader("Modify or delete a project")
         row_index = st.number_input("Select row index", min_value=0, max_value=len(df)-1)
-
         st.write("Selected project:")
         st.write(df.iloc[row_index])
 
@@ -161,7 +162,6 @@ elif page == "View and modify projects":
                     df.at[row_index, "exterior_price_per_m2"] = new_ext_price / df.at[row_index, "exterior_surface"]
                 df.to_csv(CSV_PATH, index=False)
                 st.success("New price is registered.")
-
         with col2:
             if st.button("Delete project"):
                 df = df.drop(index=row_index).reset_index(drop=True)
@@ -175,9 +175,10 @@ elif page == "About this tool":
     This web tool helps estimate construction project prices using a simplified Reference Class Forecasting (RCF) method.
 
     **Key Features:**
-    - Predicts total building price based on historical averages of similar projects (based on destination and presence of cellar).
+    - Predicts total building price based on historical averages of similar projects (based on vaults and loading bay requirements).
     - Separates **building** and **exterior works** cost estimation.
     - Exterior cost is shown as a price range based on the minimum and maximum €/m² in the database.
+    - Building cost is based on the average €/m².
     - Includes a time correction factor: **2.3% yearly price increase** is assumed.
     - Projects from earlier years are adjusted upwards to match the selected forecast year.
     - Users can view, modify or delete projects.
