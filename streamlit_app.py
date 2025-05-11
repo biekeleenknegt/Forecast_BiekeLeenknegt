@@ -31,14 +31,14 @@ if not st.session_state.authenticated:
 # ---------------- DATABASE ----------------
 CSV_PATH = "database.csv"
 if os.path.exists(CSV_PATH):
-    # Inlezen (standaard komma-separator, punt-decimalen)
+    # Inlezen met komma-separated en punt-decimaal
     df = pd.read_csv(CSV_PATH, sep=",", decimal=".")
-    # Migratie: als kolom ontbreekt, toevoegen met default 0
+    # Migratie: voeg vaults/loading_bay toe als ze ontbreken
     if "vaults" not in df.columns:
         df["vaults"] = 0
     if "loading_bay" not in df.columns:
         df["loading_bay"] = 0
-    # Zorg dat numerieke velden écht numeriek zijn
+    # Zorg dat de numerieke kolommen echt numeriek zijn
     for col in [
         "surface","price","price_per_m2",
         "exterior_surface","exterior_price","exterior_price_per_m2","year"
@@ -63,11 +63,11 @@ if page == "Forecast price":
     This tool estimates both building cost and exterior works separately, with adjustments for time-based inflation.
     """)
 
-    # Checkboxes als booleans, omzetten naar 0/1
-    vaults_req   = st.checkbox("Are vaults required?")
-    loading_req  = st.checkbox("Is a loading bay required?")
-    vault_val    = 1 if vaults_req else 0
-    load_val     = 1 if loading_req else 0
+    # Checkboxes → 0/1
+    vaults_req  = st.checkbox("Are vaults required?")
+    loading_req = st.checkbox("Is a loading bay required?")
+    vault_val   = 1 if vaults_req else 0
+    load_val    = 1 if loading_req else 0
 
     input_surface    = st.number_input("Expected building surface (m²)", min_value=1)
     exterior_surface = st.number_input("Expected exterior surface (m²)", min_value=0)
@@ -83,10 +83,11 @@ if page == "Forecast price":
     ]
 
     if not filtered.empty:
-        # Inflatie-correctie
+        # Jaarlijkse correctie-functie
         def correct(row):
             return 1.023 ** (forecast_year - row["year"])
 
+        # Pas correctie toe
         filtered["corrected_price_per_m2"] = (
             filtered["price_per_m2"] * filtered.apply(correct, axis=1)
         )
@@ -94,7 +95,7 @@ if page == "Forecast price":
             filtered["exterior_price_per_m2"] * filtered.apply(correct, axis=1)
         )
 
-        # Building cost = gemiddelde * oppervlakte
+        # Building cost (gemiddelde)
         avg_ppm2     = filtered["corrected_price_per_m2"].mean()
         est_building = avg_ppm2 * input_surface
 
@@ -102,18 +103,20 @@ if page == "Forecast price":
         st.write(f"Corrected avg price per m²: **€{avg_ppm2:,.2f}**")
         st.success(f"Estimated building cost: **€{est_building:,.2f}**")
 
-        # Exterior cost = range * oppervlakte
+        # Exterior works estimate (positieve waarden)
         st.subheader("Exterior works estimate")
-        ex = filtered["corrected_exterior_price_per_m2"].dropna()
+        ex = filtered["corrected_exterior_price_per_m2"]
+        ex = ex[(ex.notna()) & (ex > 0)]
+
         if not ex.empty and exterior_surface > 0:
             mn, mx = ex.min(), ex.max()
             st.write(
-                f"Estimated exterior cost range: **€{mn*exterior_surface:,.2f} – "
-                f"€{mx*exterior_surface:,.2f}**"
+                f"Estimated exterior cost range: **€{mn * exterior_surface:,.2f} – "
+                f"€{mx * exterior_surface:,.2f}**"
             )
-            st.write(f"Based on corrected €/m² from **€{mn:.2f}** to **€{mx:.2f}**")
+            st.write(f"Based on corrected €/m² from **€{mn:,.2f}** to **€{mx:,.2f}**")
         elif exterior_surface > 0:
-            st.warning("No exterior pricing data available.")
+            st.warning("No positive exterior pricing data available.")
         else:
             st.info("Enter an exterior surface to see a cost range.")
     else:
@@ -123,14 +126,14 @@ if page == "Forecast price":
 elif page == "Add new project":
     st.header("Add New Project")
     with st.form("add_form"):
-        name         = st.text_input("Project name")
-        vaults_pres  = 1 if st.checkbox("Are vaults present?") else 0
-        load_pres    = 1 if st.checkbox("Is a loading bay present?") else 0
-        surface      = st.number_input("Building surface (m²)", min_value=1)
-        price        = st.number_input("Total sale price (€)", min_value=1)
-        ext_surf     = st.number_input("Exterior surface (m²)", min_value=0)
-        ext_price    = st.number_input("Total exterior price (€)", min_value=0)
-        year         = st.number_input(
+        name        = st.text_input("Project name")
+        vaults_pres = 1 if st.checkbox("Are vaults present?") else 0
+        load_pres   = 1 if st.checkbox("Is a loading bay present?") else 0
+        surface     = st.number_input("Building surface (m²)", min_value=1)
+        price       = st.number_input("Total sale price (€)", min_value=1)
+        ext_surf    = st.number_input("Exterior surface (m²)", min_value=0)
+        ext_price   = st.number_input("Total exterior price (€)", min_value=0)
+        year        = st.number_input(
             "Year of construction",
             min_value=2000, max_value=datetime.now().year,
             value=datetime.now().year
@@ -139,9 +142,9 @@ elif page == "Add new project":
         submit = st.form_submit_button("Submit project")
         if submit:
             if name:
-                price_ppm2    = price / surface
-                ext_ppm2      = ext_price / ext_surf if ext_surf > 0 else None
-                new_row       = {
+                price_ppm2 = price / surface
+                ext_ppm2   = ext_price / ext_surf if ext_surf > 0 else None
+                new_row    = pd.DataFrame([{
                     "name": name,
                     "vaults": vaults_pres,
                     "loading_bay": load_pres,
@@ -152,8 +155,8 @@ elif page == "Add new project":
                     "exterior_price": ext_price,
                     "exterior_price_per_m2": ext_ppm2,
                     "year": year
-                }
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
                 df.to_csv(CSV_PATH, index=False)
                 st.success("Project successfully added.")
             else:
@@ -188,7 +191,9 @@ elif page == "View and modify projects":
                 df.at[idx, "price_per_m2"] = new_price / df.at[idx, "surface"]
                 df.at[idx, "exterior_price"] = new_ext_price
                 if df.at[idx, "exterior_surface"] > 0:
-                    df.at[idx, "exterior_price_per_m2"] = new_ext_price / df.at[idx, "exterior_surface"]
+                    df.at[idx, "exterior_price_per_m2"] = (
+                        new_ext_price / df.at[idx, "exterior_surface"]
+                    )
                 df.to_csv(CSV_PATH, index=False)
                 st.success("Price updated.")
         with c2:
