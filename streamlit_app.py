@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+from scipy.stats import shapiro, norm
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="Project Cost Estimator", layout="centered")
@@ -31,14 +32,11 @@ if not st.session_state.authenticated:
 # ---------------- DATABASE ----------------
 CSV_PATH = "database.csv"
 if os.path.exists(CSV_PATH):
-    # Inlezen met komma-separated en punt-decimaal
     df = pd.read_csv(CSV_PATH, sep=",", decimal=".")
-    # Migratie: voeg vaults/loading_bay toe als ze ontbreken
     if "vaults" not in df.columns:
         df["vaults"] = 0
     if "loading_bay" not in df.columns:
         df["loading_bay"] = 0
-    # Zorg dat de numerieke kolommen echt numeriek zijn
     for col in [
         "surface","price","price_per_m2",
         "exterior_surface","exterior_price","exterior_price_per_m2","year"
@@ -61,9 +59,9 @@ if page == "Forecast price":
     st.header("Forecast Project Price")
     st.markdown("""
     This tool estimates both building cost and exterior works separately, with adjustments for time-based inflation.
+    Additionally, performs normality test and computes prediction intervals accordingly.
     """)
 
-    # Checkboxes → 0/1
     vaults_req  = st.checkbox("Are vaults required?")
     loading_req = st.checkbox("Is a loading bay required?")
     vault_val   = 1 if vaults_req else 0
@@ -76,45 +74,56 @@ if page == "Forecast price":
         value=datetime.now().year
     )
 
-    # Filter op exact 0/1
-    filtered = df[
-        (df["vaults"] == vault_val) &
-        (df["loading_bay"] == load_val)
-    ]
+    filtered = df[(df["vaults"] == vault_val) & (df["loading_bay"] == load_val)]
 
     if not filtered.empty:
-        # Jaarlijkse correctie-functie
         def correct(row):
             return 1.023 ** (forecast_year - row["year"])
 
-        # Pas correctie toe
-        filtered["corrected_price_per_m2"] = (
-            filtered["price_per_m2"] * filtered.apply(correct, axis=1)
-        )
-        filtered["corrected_exterior_price_per_m2"] = (
-            filtered["exterior_price_per_m2"] * filtered.apply(correct, axis=1)
-        )
+        filtered["corr_ppm2"] = filtered["price_per_m2"] * filtered.apply(correct, axis=1)
+        filtered["corr_ext_ppm2"] = filtered["exterior_price_per_m2"] * filtered.apply(correct, axis=1)
 
-        # Building cost (gemiddelde)
-        avg_ppm2     = filtered["corrected_price_per_m2"].mean()
-        est_building = avg_ppm2 * input_surface
+        est_build_ppm2 = filtered["corr_ppm2"]
+        mean_ppm2 = est_build_ppm2.mean()
+        est_build = mean_ppm2 * input_surface
 
         st.info(f"{filtered.shape[0]} matching projects found.")
-        st.write(f"Corrected avg price per m²: **€{avg_ppm2:,.2f}**")
-        st.success(f"Estimated building cost: **€{est_building:,.2f}**")
+        st.write(f"Corrected avg price per m²: **€{mean_ppm2:,.2f}**")
+        st.success(f"Estimated building cost: **€{est_build:,.2f}**")
 
-        # Exterior works estimate (positieve waarden)
+        st.subheader("Building price interval (normality test)")
+        stat, p = shapiro(est_build_ppm2)
+        st.write(f"Shapiro–Wilk p-value: {p:.3f}")
+        if p > 0.05:
+            # assume normal, z-interval
+            z = norm.ppf(0.975)
+            sd = est_build_ppm2.std(ddof=1)
+            se = sd / (len(est_build_ppm2) ** 0.5)
+            low = mean_ppm2 - z * se
+            high = mean_ppm2 + z * se
+            st.write(f"95% prediction interval (±1.96 SE): €/m² [{low:,.2f} – {high:,.2f}] (normal)")
+        else:
+            # quantile interval
+            q_low, q_high = est_build_ppm2.quantile([0.025, 0.975])
+            st.write(f"95% prediction interval (quantiles): €/m² [{q_low:,.2f} – {q_high:,.2f}] (non-normal)")
+
         st.subheader("Exterior works estimate")
-        ex = filtered["corrected_exterior_price_per_m2"]
-        ex = ex[(ex.notna()) & (ex > 0)]
-
+        ex = filtered["corr_ext_ppm2"].dropna()
+        ex = ex[ex > 0]
         if not ex.empty and exterior_surface > 0:
             mn, mx = ex.min(), ex.max()
             st.write(
-                f"Estimated exterior cost range: **€{mn * exterior_surface:,.2f} – "
-                f"€{mx * exterior_surface:,.2f}**"
+                f"Estimated exterior cost range: **€{mn * exterior_surface:,.2f} – €{mx * exterior_surface:,.2f}**"
             )
             st.write(f"Based on corrected €/m² from **€{mn:,.2f}** to **€{mx:,.2f}**")
+
+            # totaal
+            total_min = est_build + mn * exterior_surface
+            total_max = est_build + mx * exterior_surface
+            st.subheader("Total project cost estimate")
+            st.write(
+                f"Estimated total cost range: **€{total_min:,.2f} – €{total_max:,.2f}**"
+            )
         elif exterior_surface > 0:
             st.warning("No positive exterior pricing data available.")
         else:
@@ -142,21 +151,21 @@ elif page == "Add new project":
         submit = st.form_submit_button("Submit project")
         if submit:
             if name:
-                price_ppm2 = price / surface
-                ext_ppm2   = ext_price / ext_surf if ext_surf > 0 else None
-                new_row    = pd.DataFrame([{
+                ppm2 = price / surface
+                ext_ppm2 = ext_price / ext_surf if ext_surf > 0 else None
+                new = pd.DataFrame([{
                     "name": name,
                     "vaults": vaults_pres,
                     "loading_bay": load_pres,
                     "surface": surface,
                     "price": price,
-                    "price_per_m2": price_ppm2,
+                    "price_per_m2": ppm2,
                     "exterior_surface": ext_surf,
                     "exterior_price": ext_price,
                     "exterior_price_per_m2": ext_ppm2,
                     "year": year
                 }])
-                df = pd.concat([df, new_row], ignore_index=True)
+                df = pd.concat([df, new], ignore_index=True)
                 df.to_csv(CSV_PATH, index=False)
                 st.success("Project successfully added.")
             else:
@@ -211,6 +220,7 @@ elif page == "About this tool":
     **Key Features:**
     - Predicts total building price based on historical averages of similar projects (based on vaults and loading bay requirements).
     - Separates **building** and **exterior works** cost estimation.
+    - Performs Shapiro–Wilk normality test and adapts prediction interval method.
     - Exterior cost is shown as a price range based on the minimum and maximum €/m² in the database.
     - Building cost is based on the average €/m².
     - Includes a time correction factor: **2.3% yearly price increase** is assumed.
