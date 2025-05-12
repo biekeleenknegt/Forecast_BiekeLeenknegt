@@ -70,7 +70,7 @@ if page == "Forecast price":
     input_surface    = st.number_input("Expected building surface (m²)", min_value=1)
     exterior_surface = st.number_input("Expected exterior surface (m²)", min_value=0)
     forecast_year    = st.number_input(
-        "Planned project year", min_value=2020, max_value=2100,
+        "Planned project year", min_value=1900, max_value=2100,
         value=datetime.now().year
     )
 
