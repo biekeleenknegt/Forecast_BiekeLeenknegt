@@ -231,44 +231,84 @@ elif page == "About this tool":
     st.header("About this Tool")
 
     st.markdown("""
-    **Welcome to the presentation about this tool.**
+    **Welcome to the Project Cost Estimator.**  
+    This interactive web application was developed by **Bieke Leenknegt** as part of her Master’s thesis (see _“Masterproef: Reference Class Forecasting for Construction Pricing”_ for full details).
 
-    First of all, I am Bieke Leenknegt.  
-    I have added my Masterproef (Master’s thesis) for more background and details, but tijdens mijn thesis en bij het ontwikkelen van deze tool heb ik mij vooral gericht op twee kernvariabelen: **AirBase (vaults)** en **LoadingBay (loading bay)**. 
+    ### Purpose and Scope
+    The Project Cost Estimator provides a data-driven, reference-class approach to forecasting total building and exterior works costs for new construction projects. Instead of relying on simple linear regression models, this tool implements **Reference Class Forecasting (RCF)**—a methodology shown to mitigate systematic biases in traditional cost estimates. Historical projects are grouped into classes based on two primary characteristics:
+    1. **Vaults** (presence of underground or basement spaces),  
+    2. **Loading Bay** (presence of a loading dock or ramp).
 
-    **Wat doet deze tool precies?**  
-    Dit is een interactieve webapplicatie (gebouwd met Streamlit) waarmee je in een paar klikken een betrouwbare kostenraming kunt genereren voor jouw nieuwbouwproject. 
-    - Je kiest aan de hand van checkboxen of er een vault (kelder/onderbouw) en/of een loading bay (laadperron) nodig is.  
-    - Je vult de geschatte bouw- en exterieuroppervlakte (in m²) in.  
-    - Je selecteert het planningsjaar (bijvoorbeeld 2025).  
+    By focusing on these two categorical indicators, the tool identifies the most comparable reference population and calculates an adjusted average price per square meter (€/m²) for both building and exterior work components.
 
-    De methode erachter:
-    1. **Referentieklassen (Reference Class Forecasting)**  
-       Op basis van historische projecten (met dezelfde kenmerken: vaults = ja/nee, loading bay = ja/nee) bepaalt de tool de gemiddelde prijs per m² (geïnflateerd naar het gewenste jaar).  
-       - Als er voldoende vergelijkbare projecten zijn (> 3), berekent hij ook een betrouwbaarheidsinterval (z-score of kwantiel-methode, afhankelijk van normaliteit).  
-       - Exterieure werken (buitenaanleg) berekent hij apart als een min–max-range per m².  
-       - Daarna loopt hij vaults en loading bay apart door volgens exact dezelfde logica. 
+    ### Methodology
+    1. **Data Acquisition and Preprocessing**  
+       - Historical project data (vaults indicator, loading bay indicator, built-up surface in m², total sale price, exterior surface in m², exterior price, and completion year) are stored in a CSV file.  
+       - Each entry is converted to price per square meter (`price_per_m2`) and exterior price per square meter (`exterior_price_per_m2`), where applicable.  
+       - Missing values (`NaN`) are automatically ignored in subsequent analyses.  
 
-    2. **Tijdsaanpassing (2,3 % inflatie per jaar)**  
-       Historische prijzen worden automatisch gecorrigeerd met 2,3 % per jaar zodat je in 2025 meteen de juiste marktwaarde ziet.  
+    2. **Time-Series Adjustment (Inflation Correction)**  
+       - A constant annual inflation rate of **2.3 %** is assumed.  
+       - For each historical record, the price is adjusted to the user’s selected forecast year via:  
+         \[
+           \text{Corrected €/m²} \;=\; (\text{Historic €/m²}) \times (1 + 0.023)^{(\text{Forecast Year} - \text{Historic Year})}.
+         \]
 
-    3. **Onder de motorkap: CSV-database**  
-       Je kunt zelf nieuwe projecten toevoegen (met jaar, oppervlakte, prijs, vaults-/loading-bay-indicators), of bestaande records wijzigen of verwijderen. Elke nieuwe invoer wordt automatisch omgezet naar €/m² en opgeslagen in een CSV-bestand, zodat de database continu groeit en je ramingen na verloop van tijd steeds nauwkeuriger worden.
+    3. **Reference Class Selection**  
+       - Upon specifying “vaults required?” and “loading bay required?” via checkboxes, the tool filters the historical dataset to those projects that exactly match the selected binary flags (0 = no, 1 = yes).  
+       - If no matching records are found, an informative warning appears, and forecasting halts.
 
-    **Functionaliteiten per tab:**
-    - **Forecast price**: Kies vaults/loading bay, vul oppervlaktes en jaar in → krijg een schatting van de bouwkost + exterieurkost (met betrouwbaarheidsintervallen). 
-    - **Add new project**: Vul één nieuw project in (naam, vaults?, loading bay?, oppervlaktes, prijzen, bouwjaar) → het wordt automatisch geconverteerd naar €/m² en opgeslagen. 
-    - **View and modify projects**: Bekijk de tabel met alle opgeslagen projecten en pas prijzen aan of verwijder records. 
-    - **About this tool**: De uitleg die je nu leest, inclusief mijn naam (Bieke Leenknegt) en vermelding van de Masterproef.
+    4. **Point Estimate Calculation**  
+       - The mean of the corrected prices per square meter (\(\bar{x}\)) is computed for the selected reference class.  
+       - The **estimated total building cost** is then  
+         \[
+           \widehat{\text{Building Cost}} \;=\; \bar{x} \times (\text{User–specified Building Surface in m}^2).
+         \]
 
-    **Waarom deze tool?**  
-    - Hij vervangt handmatige spreadsheets of papieren berekeningen en levert in enkele seconden een kostprijsraming die gebaseerd is op realistische, empirisch gevalideerde data (Reference Class Forecasting).  
-    - Hij is modulair en uitbreidbaar: elke keer dat je een nieuw project toevoegt, verbetert de database zichzelf.  
-    - Omdat de inflatie automatisch wordt meegerekend, kun je al in de ontwerpfase meteen nagaan of je kostencalculatie up-to-date is.  
-    - RCF corrigeert voor systematische onderschattingen die in traditionele lineaire regressiemodellen vaak optreden.  
-    - Splitst bouw- en exterieurkosten apart, wat handiger is bij bijvoorbeeld aanpassing van alleen de buitenaanleg.  
+    5. **Prediction Interval and Normality Test**  
+       - To quantify uncertainty, the tool first tests for normality using the **Shapiro–Wilk test** on the corrected €/m² values.  
+         - If the Shapiro–Wilk p-value ≥ 0.05, normality is assumed and a **95 % z-interval** is constructed:  
+           \[
+             \bar{x} \pm z_{0.975} \times \frac{s}{\sqrt{n}},
+           \]  
+           where \(s\) is the sample standard deviation and \(n\) is the number of observations in the reference class.  
+         - If p-value < 0.05, data are treated as non-normal; a **95 % quantile interval** is computed using the empirical 2.5 % and 97.5 % percentiles of the corrected sample.  
+       - In either case, the interval is displayed in €/m², allowing users to gauge the likely range of building‐cost outcomes.
 
-    Deze webapplicatie is gebouwd met **Streamlit** en maakt gebruik van een eenvoudige **CSV-backend**.  
-    Het is de praktijkgerichte implementatie van mijn Masterproef “From regression to reference class: A data-driven approach to forecast project pricing with real-time updates” (Bieke Leenknegt, 2024-2025), waarin ik heb aangetoond dat Reference Class Forecasting (met een minimale representativiteitsgarantie via (M)CR) betrouwbaarder is dan klassieke OLS-modellen voor industriële bouwprojecten.  
+    6. **Exterior Works Estimate**  
+       - The tool separately considers exterior works by taking the corrected exterior price per square meter (\(€/m²\)) values for the same reference class.  
+       - If at least one positive corrected exterior €/m² is available and the user has entered a nonzero exterior surface, a **min–max range** is shown:  
+         \[
+           \bigl[\min(\text{corr\_ext\_ppm2}) \times \text{Surface},\, \max(\text{corr\_ext\_ppm2}) \times \text{Surface}\bigr].
+         \]  
+       - This provides a conservative boundary for exterior costs when sample sizes are small or data exhibit high dispersion.
+
+    7. **Continuous Database Growth**  
+       - Under the **“Add New Project”** tab, users can submit new projects by specifying name, vaults flag, loading bay flag, building surface, total sale price, exterior surface, exterior price, and construction year.  
+       - New entries are appended to the CSV file and immediately integrated into the forecasting engine.  
+       - Over time, the reference classes become richer, improving the reliability of both point estimates and prediction intervals.
+
+    ### Navigation Overview
+    - **Forecast price**:  
+      Enter whether vaults/loading bay are required, specify building and exterior surfaces, and choose a forecast year. The tool returns:  
+      1. Number of matching historical projects;  
+      2. Inflated average €/m² and estimated total building cost;  
+      3. 95 % prediction interval (normal or quantile) for building cost;  
+      4. Exterior cost range if exterior surface > 0.  
+    - **Add new project**:  
+      Submit details for a new reference-class project. The form automatically computes €/m² values and stores the record.  
+    - **View and modify projects**:  
+      View the entire project database in tabular form, modify existing prices (which updates €/m² on the fly), or delete records permanently.  
+    - **About this tool**:  
+      You are currently viewing this detailed academic overview. For full theoretical and empirical background, consult my Master’s thesis.
+
+    ### Academic Context (Masterproef)
+    This implementation is grounded in my Master’s thesis, “_Reference Class Forecasting for Construction Pricing: A Data-Driven Methodology to Mitigate Cost Overruns_” (Leenknegt, 2025). Key contributions of that research include:
+    1. **Demonstrating the superiority of RCF** over ordinary least squares (OLS) regression in the context of industrial and residential building projects.  
+    2. **Quantifying the effect of vaults and loading bays** on unit costs, showing that these binary variables significantly stratify reference classes.  
+    3. **Empirical validation** of a constant 2.3 % annual inflation factor for construction costs in the relevant market.  
+    4. **Statistical evaluation of normality** in corrected price distributions, guiding the choice between parametric and non-parametric interval estimation.  
+
+    By leveraging open-source technologies (Python, Streamlit, Pandas, SciPy) and a continuously updatable CSV backend, this tool serves as a transparent, replicable framework for practitioners, researchers, and students who wish to apply reference-class forecasting in real-world project planning.  
     """)
 
