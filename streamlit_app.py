@@ -96,9 +96,9 @@ if page == "Forecast price":
         # ---------------- AANGEPASTE CONTROLE OP MINIMALE DATAPUNTEN ----------------
         if len(est_build_ppm2) < 3:
             st.info(
-                "Op dit moment zijn er nog niet genoeg projecten beschikbaar om "
-                "een betrouwbaar prijsinterval te berekenen (minimaal 3 waarden nodig). "
-                "Kom later terug zodra er minstens 3 vergelijkbare projecten zijn ingevoerd."
+                "At this moment, there are not enough projects available to "
+                "calculate a reliable price range (minimum of 3 values required). "
+                "Please try again once at least 3 comparable projects have been entered."
             )
         else:
             try:
