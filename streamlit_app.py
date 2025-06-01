@@ -94,12 +94,14 @@ if page == "Forecast price":
         st.subheader("Building price interval (normality test)")
 
         # ---------------- AANGEPASTE CONTROLE OP MINIMALE DATAPUNTEN ----------------
-        if len(est_build_ppm2) < 3:
-            st.info(
-                "At this moment, there are not enough projects available to "
-                "calculate a reliable price range (minimum of 3 values required). "
-                "Please try again once at least 3 comparable projects have been entered."
+        # ---------------- AANGEPASTE CONTROLE OP MINIMALE DATAPUNTEN ----------------
+        if len(est_build_ppm2) < 4:
+            st.warning(
+               f"Only {len(est_build_ppm2)} valid price points found for this reference class. "
+               "The average price and estimate are shown below, but they are not statistically representative. "
+                  "Use with caution — ideally, at least 4 projects are required to ensure a robust average."
             )
+
         else:
             try:
                 stat, p = shapiro(est_build_ppm2)
