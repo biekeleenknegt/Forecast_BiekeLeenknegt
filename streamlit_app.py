@@ -8,8 +8,12 @@ from scipy.stats import shapiro, norm
 st.set_page_config(page_title="Project Cost Estimator", layout="centered")
 st.title("Project Cost Estimator")
 
-USERNAME = "test"
-PASSWORD = "test"
+USERS = {
+    "test": "test",
+    "mario": "WachtwoordMario!",
+    "tom": "WachtwoordTom!"
+}
+
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -21,7 +25,7 @@ if not st.session_state.authenticated:
         password = st.text_input("Password", type="password")
         login = st.form_submit_button("Login")
         if login:
-            if username == USERNAME and password == PASSWORD:
+            if username in USERS and password == USERS[username]:
                 st.session_state.authenticated = True
                 st.success("Login successful. Please press login again.")
                 st.stop()
