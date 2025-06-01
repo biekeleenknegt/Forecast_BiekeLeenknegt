@@ -83,7 +83,7 @@ if page == "Forecast price":
         filtered["corr_ppm2"] = filtered["price_per_m2"] * filtered.apply(correct, axis=1)
         filtered["corr_ext_ppm2"] = filtered["exterior_price_per_m2"] * filtered.apply(correct, axis=1)
 
-        est_build_ppm2 = filtered["corr_ppm2"]
+        est_build_ppm2 = filtered["corr_ppm2"].dropna()
         mean_ppm2 = est_build_ppm2.mean()
         est_build = mean_ppm2 * input_surface
 
@@ -92,20 +92,35 @@ if page == "Forecast price":
         st.success(f"Estimated building cost: **€{est_build:,.2f}**")
 
         st.subheader("Building price interval (normality test)")
-        stat, p = shapiro(est_build_ppm2)
-        st.write(f"Shapiro–Wilk p-value: {p:.3f}")
-        if p > 0.05:
-            # assume normal, z-interval
-            z = norm.ppf(0.975)
-            sd = est_build_ppm2.std(ddof=1)
-            se = sd / (len(est_build_ppm2) ** 0.5)
-            low = mean_ppm2 - z * se
-            high = mean_ppm2 + z * se
-            st.write(f"95% prediction interval (±1.96 SE): €/m² [{low:,.2f} – {high:,.2f}] (normal)")
+
+        # ---------------- AANGEPASTE CONTROLE OP MINIMALE DATAPUNTEN ----------------
+        if len(est_build_ppm2) < 3:
+            st.info(
+                "Op dit moment zijn er nog niet genoeg projecten beschikbaar om "
+                "een betrouwbaar prijsinterval te berekenen (minimaal 3 waarden nodig). "
+                "Kom later terug zodra er minstens 3 vergelijkbare projecten zijn ingevoerd."
+            )
         else:
-            # quantile interval
-            q_low, q_high = est_build_ppm2.quantile([0.025, 0.975])
-            st.write(f"95% prediction interval (quantiles): €/m² [{q_low:,.2f} – {q_high:,.2f}] (non-normal)")
+            try:
+                stat, p = shapiro(est_build_ppm2)
+                st.write(f"Shapiro–Wilk p-value: {p:.3f}")
+                if p > 0.05:
+                    # assume normal, z-interval
+                    z = norm.ppf(0.975)
+                    sd = est_build_ppm2.std(ddof=1)
+                    se = sd / (len(est_build_ppm2) ** 0.5)
+                    low = mean_ppm2 - z * se
+                    high = mean_ppm2 + z * se
+                    st.write(f"95% prediction interval (±1.96 SE): €/m² [{low:,.2f} – {high:,.2f}] (normal)")
+                else:
+                    # quantile interval
+                    q_low, q_high = est_build_ppm2.quantile([0.025, 0.975])
+                    st.write(f"95% prediction interval (quantiles): €/m² [{q_low:,.2f} – {q_high:,.2f}] (non-normal)")
+            except ValueError:
+                st.error(
+                    "Er is een onverwacht probleem opgetreden bij het berekenen van het interval. "
+                    "Controleer of de gegevens correct zijn ingevoerd."
+                )
 
         st.subheader("Exterior works estimate")
         ex = filtered["corr_ext_ppm2"].dropna()
@@ -214,17 +229,46 @@ elif page == "View and modify projects":
 # ---------------- 4. ABOUT TOOL ----------------
 elif page == "About this tool":
     st.header("About this Tool")
-    st.markdown("""
-    This web tool helps estimate construction project prices using a simplified Reference Class Forecasting (RCF) method.
 
-    **Key Features:**
-    - Predicts total building price based on historical averages of similar projects (based on vaults and loading bay requirements).
-    - Separates **building** and **exterior works** cost estimation.
-    - Performs Shapiro–Wilk normality test and adapts prediction interval method.
-    - Exterior cost is shown as a price range based on the minimum and maximum €/m² in the database.
-    - Building cost is based on the average €/m².
-    - Includes a time correction factor: **2.3% yearly price increase** is assumed.
-    - Projects from earlier years are adjusted upwards to match the selected forecast year.
-    - Users can view, modify or delete projects.
-    - Built using **Streamlit** with a CSV-based backend.
+    st.markdown("""
+    **Welcome to the presentation about this tool.**
+
+    First of all, I am Bieke Leenknegt.  
+    I have added my Masterproef (Master’s thesis) for more background and details, but tijdens mijn thesis en bij het ontwikkelen van deze tool heb ik mij vooral gericht op twee kernvariabelen: **AirBase (vaults)** en **LoadingBay (loading bay)**. 
+
+    **Wat doet deze tool precies?**  
+    Dit is een interactieve webapplicatie (gebouwd met Streamlit) waarmee je in een paar klikken een betrouwbare kostenraming kunt genereren voor jouw nieuwbouwproject. 
+    - Je kiest aan de hand van checkboxen of er een vault (kelder/onderbouw) en/of een loading bay (laadperron) nodig is.  
+    - Je vult de geschatte bouw- en exterieuroppervlakte (in m²) in.  
+    - Je selecteert het planningsjaar (bijvoorbeeld 2025).  
+
+    De methode erachter:
+    1. **Referentieklassen (Reference Class Forecasting)**  
+       Op basis van historische projecten (met dezelfde kenmerken: vaults = ja/nee, loading bay = ja/nee) bepaalt de tool de gemiddelde prijs per m² (geïnflateerd naar het gewenste jaar).  
+       - Als er voldoende vergelijkbare projecten zijn (> 3), berekent hij ook een betrouwbaarheidsinterval (z-score of kwantiel-methode, afhankelijk van normaliteit).  
+       - Exterieure werken (buitenaanleg) berekent hij apart als een min–max-range per m².  
+       - Daarna loopt hij vaults en loading bay apart door volgens exact dezelfde logica. 
+
+    2. **Tijdsaanpassing (2,3 % inflatie per jaar)**  
+       Historische prijzen worden automatisch gecorrigeerd met 2,3 % per jaar zodat je in 2025 meteen de juiste marktwaarde ziet.  
+
+    3. **Onder de motorkap: CSV-database**  
+       Je kunt zelf nieuwe projecten toevoegen (met jaar, oppervlakte, prijs, vaults-/loading-bay-indicators), of bestaande records wijzigen of verwijderen. Elke nieuwe invoer wordt automatisch omgezet naar €/m² en opgeslagen in een CSV-bestand, zodat de database continu groeit en je ramingen na verloop van tijd steeds nauwkeuriger worden.
+
+    **Functionaliteiten per tab:**
+    - **Forecast price**: Kies vaults/loading bay, vul oppervlaktes en jaar in → krijg een schatting van de bouwkost + exterieurkost (met betrouwbaarheidsintervallen). 
+    - **Add new project**: Vul één nieuw project in (naam, vaults?, loading bay?, oppervlaktes, prijzen, bouwjaar) → het wordt automatisch geconverteerd naar €/m² en opgeslagen. 
+    - **View and modify projects**: Bekijk de tabel met alle opgeslagen projecten en pas prijzen aan of verwijder records. 
+    - **About this tool**: De uitleg die je nu leest, inclusief mijn naam (Bieke Leenknegt) en vermelding van de Masterproef.
+
+    **Waarom deze tool?**  
+    - Hij vervangt handmatige spreadsheets of papieren berekeningen en levert in enkele seconden een kostprijsraming die gebaseerd is op realistische, empirisch gevalideerde data (Reference Class Forecasting).  
+    - Hij is modulair en uitbreidbaar: elke keer dat je een nieuw project toevoegt, verbetert de database zichzelf.  
+    - Omdat de inflatie automatisch wordt meegerekend, kun je al in de ontwerpfase meteen nagaan of je kostencalculatie up-to-date is.  
+    - RCF corrigeert voor systematische onderschattingen die in traditionele lineaire regressiemodellen vaak optreden.  
+    - Splitst bouw- en exterieurkosten apart, wat handiger is bij bijvoorbeeld aanpassing van alleen de buitenaanleg.  
+
+    Deze webapplicatie is gebouwd met **Streamlit** en maakt gebruik van een eenvoudige **CSV-backend**.  
+    Het is de praktijkgerichte implementatie van mijn Masterproef “From regression to reference class: A data-driven approach to forecast project pricing with real-time updates” (Bieke Leenknegt, 2024-2025), waarin ik heb aangetoond dat Reference Class Forecasting (met een minimale representativiteitsgarantie via (M)CR) betrouwbaarder is dan klassieke OLS-modellen voor industriële bouwprojecten.  
     """)
+
