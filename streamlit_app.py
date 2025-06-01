@@ -229,86 +229,55 @@ elif page == "View and modify projects":
 # ---------------- 4. ABOUT TOOL ----------------
 elif page == "About this tool":
     st.header("About this Tool")
-
     st.markdown("""
-    **Welcome to the Project Cost Estimator.**  
-    This interactive web application was developed by **Bieke Leenknegt** as part of her Master’s thesis (see _“Masterproef: Reference Class Forecasting for Construction Pricing”_ for full details).
+    This interactive application was developed by **Bieke Leenknegt** as part of her Master’s thesis titled  
+    _“Reference Class Forecasting for Construction Pricing: A Data-Driven Framework for Transparent, Scalable, and Real-Time Project Estimates”_ (2025).
 
-    ### Purpose and Scope
-    The Project Cost Estimator provides a data-driven, reference-class approach to forecasting total building and exterior works costs for new construction projects. Instead of relying on simple linear regression models, this tool implements **Reference Class Forecasting (RCF)**—a methodology shown to mitigate systematic biases in traditional cost estimates. Historical projects are grouped into classes based on two primary characteristics:
-    1. **Vaults** (presence of underground or basement spaces),  
-    2. **Loading Bay** (presence of a loading dock or ramp).
+    It operationalises the principles of Reference Class Forecasting (RCF) into a transparent, updatable and user-friendly cost prediction tool for construction projects.
 
-    By focusing on these two categorical indicators, the tool identifies the most comparable reference population and calculates an adjusted average price per square meter (€/m²) for both building and exterior work components.
+    ### Purpose and Functionality
+
+    The tool offers real-time forecasts of total construction costs for new projects, based on similarity to previously completed buildings.  
+    Instead of relying on traditional regression models, the tool applies RCF: historical projects are grouped into reference classes based on two binary indicators — the presence of **vaults** and a **loading bay** — shown to significantly stratify pricing.
+
+    The application consists of three functional pages:
+
+    - **Forecast price**  
+      Users input project characteristics, surface areas, and a target forecast year.  
+      The tool filters the reference dataset for similar projects and applies a **2.7% annual inflation adjustment** to bring all €/m² values in line with the selected year.  
+      Output includes:
+        - Number of matching reference projects  
+        - Average corrected €/m² and total building cost  
+        - A 95% confidence interval for unit price  
+        - A min–max range for exterior works (if applicable)
+
+    - **Add new project**  
+      This page allows users to submit completed projects. The system stores inputs such as surface, total cost, exterior values, and construction year.  
+      Derived metrics like €/m² are calculated automatically and added to the database.
+
+    - **View and modify projects**  
+      Provides access to the full historical dataset, with tools to review, edit, or delete records.
 
     ### Methodology
-    1. **Data Acquisition and Preprocessing**  
-       - Historical project data (vaults indicator, loading bay indicator, built-up surface in m², total sale price, exterior surface in m², exterior price, and completion year) are stored in a CSV file.  
-       - Each entry is converted to price per square meter (`price_per_m2`) and exterior price per square meter (`exterior_price_per_m2`), where applicable.  
-       - Missing values (`NaN`) are automatically ignored in subsequent analyses.  
 
-    2. **Time-Series Adjustment (Inflation Correction)**  
-       - A constant annual inflation rate of **2.3 %** is assumed.  
-       - For each historical record, the price is adjusted to the user’s selected forecast year via:  
-         \[
-           \text{Corrected €/m²} \;=\; (\text{Historic €/m²}) \times (1 + 0.023)^{(\text{Forecast Year} - \text{Historic Year})}.
-         \]
+    - **Reference Class Definition**  
+      Classes are defined using the binary presence of vaults and loading bays, forming four distinct groups for comparison.
 
-    3. **Reference Class Selection**  
-       - Upon specifying “vaults required?” and “loading bay required?” via checkboxes, the tool filters the historical dataset to those projects that exactly match the selected binary flags (0 = no, 1 = yes).  
-       - If no matching records are found, an informative warning appears, and forecasting halts.
+    - **Time Adjustment**  
+      All historical prices were already corrected in advance to reflect their expected position on a linear 2.7% growth trend between 2015 and 2025.  
+      This removed temporary inflation shocks (e.g., 2022–2024) and established a clean baseline.  
+      From this baseline, a 2.7% compound annual growth rate is applied to bring prices to the user’s forecast year.
 
-    4. **Point Estimate Calculation**  
-       - The mean of the corrected prices per square meter (\(\bar{x}\)) is computed for the selected reference class.  
-       - The **estimated total building cost** is then  
-         \[
-           \widehat{\text{Building Cost}} \;=\; \bar{x} \times (\text{User–specified Building Surface in m}^2).
-         \]
+    - **Confidence Intervals**  
+      A Shapiro–Wilk test checks for normality of the €/m² distribution in the selected class:  
+        - If normal: a z-based confidence interval is shown.  
+        - If non-normal: a 2.5%–97.5% quantile range is used instead.
 
-    5. **Prediction Interval and Normality Test**  
-       - To quantify uncertainty, the tool first tests for normality using the **Shapiro–Wilk test** on the corrected €/m² values.  
-         - If the Shapiro–Wilk p-value ≥ 0.05, normality is assumed and a **95 % z-interval** is constructed:  
-           \[
-             \bar{x} \pm z_{0.975} \times \frac{s}{\sqrt{n}},
-           \]  
-           where \(s\) is the sample standard deviation and \(n\) is the number of observations in the reference class.  
-         - If p-value < 0.05, data are treated as non-normal; a **95 % quantile interval** is computed using the empirical 2.5 % and 97.5 % percentiles of the corrected sample.  
-       - In either case, the interval is displayed in €/m², allowing users to gauge the likely range of building‐cost outcomes.
+    - **Exterior Works**  
+      Exterior prices are processed separately. If available, a min–max €/m² range is calculated and scaled to the user’s exterior surface input.
 
-    6. **Exterior Works Estimate**  
-       - The tool separately considers exterior works by taking the corrected exterior price per square meter (\(€/m²\)) values for the same reference class.  
-       - If at least one positive corrected exterior €/m² is available and the user has entered a nonzero exterior surface, a **min–max range** is shown:  
-         \[
-           \bigl[\min(\text{corr\_ext\_ppm2}) \times \text{Surface},\, \max(\text{corr\_ext\_ppm2}) \times \text{Surface}\bigr].
-         \]  
-       - This provides a conservative boundary for exterior costs when sample sizes are small or data exhibit high dispersion.
+    ### Technical Stack
 
-    7. **Continuous Database Growth**  
-       - Under the **“Add New Project”** tab, users can submit new projects by specifying name, vaults flag, loading bay flag, building surface, total sale price, exterior surface, exterior price, and construction year.  
-       - New entries are appended to the CSV file and immediately integrated into the forecasting engine.  
-       - Over time, the reference classes become richer, improving the reliability of both point estimates and prediction intervals.
-
-    ### Navigation Overview
-    - **Forecast price**:  
-      Enter whether vaults/loading bay are required, specify building and exterior surfaces, and choose a forecast year. The tool returns:  
-      1. Number of matching historical projects;  
-      2. Inflated average €/m² and estimated total building cost;  
-      3. 95 % prediction interval (normal or quantile) for building cost;  
-      4. Exterior cost range if exterior surface > 0.  
-    - **Add new project**:  
-      Submit details for a new reference-class project. The form automatically computes €/m² values and stores the record.  
-    - **View and modify projects**:  
-      View the entire project database in tabular form, modify existing prices (which updates €/m² on the fly), or delete records permanently.  
-    - **About this tool**:  
-      You are currently viewing this detailed academic overview. For full theoretical and empirical background, consult my Master’s thesis.
-
-    ### Academic Context (Masterproef)
-    This implementation is grounded in my Master’s thesis, “_Reference Class Forecasting for Construction Pricing: A Data-Driven Methodology to Mitigate Cost Overruns_” (Leenknegt, 2025). Key contributions of that research include:
-    1. **Demonstrating the superiority of RCF** over ordinary least squares (OLS) regression in the context of industrial and residential building projects.  
-    2. **Quantifying the effect of vaults and loading bays** on unit costs, showing that these binary variables significantly stratify reference classes.  
-    3. **Empirical validation** of a constant 2.3 % annual inflation factor for construction costs in the relevant market.  
-    4. **Statistical evaluation of normality** in corrected price distributions, guiding the choice between parametric and non-parametric interval estimation.  
-
-    By leveraging open-source technologies (Python, Streamlit, Pandas, SciPy) and a continuously updatable CSV backend, this tool serves as a transparent, replicable framework for practitioners, researchers, and students who wish to apply reference-class forecasting in real-world project planning.  
+    This tool was fully developed in **Python**, using the **Streamlit** web framework with **Pandas** and **SciPy** for data processing and statistical logic.  
+    All data is stored in a local `.csv` file, allowing easy extension and full transparency.
     """)
-
