@@ -101,7 +101,7 @@ if page == "Forecast price":
             st.warning(
                f"Only {len(est_build_ppm2)} valid price points found for this reference class. "
                "The average price and estimate are shown above, but they are not statistically representative. "
-                  "Use with caution! Ideally, at least 4 projects are required to ensure a robust average."
+                  "Use with caution as at least 4 projects are required to ensure a robust average."
             )
 
         else:
